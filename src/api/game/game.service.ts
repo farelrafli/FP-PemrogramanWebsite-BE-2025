@@ -88,7 +88,7 @@ export abstract class GameService {
       is_published: is_private ? game.is_published : undefined,
       creator_id: user_id ? undefined : game.creator.id,
       creator_name: user_id ? undefined : game.creator.username,
-      toal_liked: game._count.liked,
+      total_liked: game._count.liked,
       _count: undefined,
     }));
 
