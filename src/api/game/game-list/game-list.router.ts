@@ -16,6 +16,7 @@ import { TrueOrFalseController } from './true-or-false/true-or-false.controller'
 import { TypeSpeedController } from './type-speed/type-speed.controller';
 import { TypeTheAnswerController } from './type-the-answer/type-the-answer.controller';
 import { WhackAMoleController } from './whack-a-mole/whack-a-mole.controller';
+import { WinOrLoseQuizController } from './win-or-lose-quiz/win-or-lose-quiz.controller';
 
 const gameListRouter = Router();
 
@@ -36,6 +37,7 @@ gameListRouter.use('/airplane', airplaneRouter);
 gameListRouter.use('/whack-a-mole', WhackAMoleController);
 gameListRouter.use('/spin-the-wheel', SpinTheWheelController);
 gameListRouter.use('/true-or-false', TrueOrFalseController);
+gameListRouter.use('/win-or-lose-quiz', WinOrLoseQuizController);
 gameListRouter.use('/math-generator', MathGeneratorController);
 
 export { gameListRouter };
