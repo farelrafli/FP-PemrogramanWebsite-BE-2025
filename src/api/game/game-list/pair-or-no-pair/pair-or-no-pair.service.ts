@@ -89,13 +89,14 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
-      // PERBAIKAN LINTING: Gunakan unknown dan type checking ketat
-      const rawJson: unknown = typeof game.game_json === 'string'
-        ? JSON.parse(game.game_json)
-        : game.game_json;
+      const rawValue: unknown =
+        typeof game.game_json === 'string'
+          ? JSON.parse(game.game_json)
+          : game.game_json;
 
-      if (rawJson && typeof rawJson === 'object' && 'items' in rawJson) {
-        parsedData = rawJson as unknown as IPairOrNoPairGameData;
+      if (rawValue && typeof rawValue === 'object' && 'items' in rawValue) {
+        const validatedData = rawValue as IPairOrNoPairGameData;
+        parsedData = { items: validatedData.items };
       }
     } catch {
       // eslint-disable-next-line no-console
@@ -153,12 +154,14 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
-      const rawJson: unknown = typeof game.game_json === 'string'
-        ? JSON.parse(game.game_json)
-        : game.game_json;
+      const rawValue: unknown =
+        typeof game.game_json === 'string'
+          ? JSON.parse(game.game_json)
+          : game.game_json;
 
-      if (rawJson && typeof rawJson === 'object' && 'items' in rawJson) {
-        parsedData = rawJson as unknown as IPairOrNoPairGameData;
+      if (rawValue && typeof rawValue === 'object' && 'items' in rawValue) {
+        const validatedData = rawValue as IPairOrNoPairGameData;
+        parsedData = { items: validatedData.items };
       }
     } catch {
       /* ignore */
