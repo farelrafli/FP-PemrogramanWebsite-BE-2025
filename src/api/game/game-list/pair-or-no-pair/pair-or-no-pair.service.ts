@@ -49,6 +49,9 @@ export abstract class PairOrNoPairService {
       },
       select: {
         id: true,
+        score: true,
+        difficulty: true,
+        created_at: true,
       },
     });
 
