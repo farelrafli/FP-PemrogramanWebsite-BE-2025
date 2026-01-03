@@ -44,7 +44,8 @@ export abstract class PairOrNoPairService {
         description: data.description,
         thumbnail_image: thumbnailImagePath,
         is_published: data.is_publish_immediately,
-        game_json: JSON.stringify(gameJson) as unknown as Prisma.InputJsonValue,
+        // FIX: Jangan di-stringify, biarkan Prisma menangani objek
+        game_json: gameJson as unknown as Prisma.InputJsonValue,
       },
       select: {
         id: true,
@@ -86,27 +87,16 @@ export abstract class PairOrNoPairService {
         'User cannot access this game',
       );
 
-    let parsedData: IPairOrNoPairGameData = { items: [] };
-
-    try {
-      const rawValue: unknown =
-        typeof game.game_json === 'string'
-          ? JSON.parse(game.game_json)
-          : game.game_json;
-
-      if (rawValue && typeof rawValue === 'object' && 'items' in rawValue) {
-        const validatedData = rawValue as IPairOrNoPairGameData;
-        parsedData = { items: validatedData.items };
-      }
-    } catch {
-      // eslint-disable-next-line no-console
-      console.error('Parsing failed for getGameDetail');
-    }
+    // FIX: Hapus try-catch, lakukan parsing manual yang aman
+    const rawJson = game.game_json;
+    const parsedData = (
+      typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson
+    ) as IPairOrNoPairGameData;
 
     return {
       ...game,
       game_json: parsedData,
-      items: parsedData.items || [],
+      items: parsedData?.items || [],
       creator_id: undefined,
       game_template: undefined,
     };
@@ -151,28 +141,18 @@ export abstract class PairOrNoPairService {
         'User cannot get this game data',
       );
 
-    let parsedData: IPairOrNoPairGameData = { items: [] };
-
-    try {
-      const rawValue: unknown =
-        typeof game.game_json === 'string'
-          ? JSON.parse(game.game_json)
-          : game.game_json;
-
-      if (rawValue && typeof rawValue === 'object' && 'items' in rawValue) {
-        const validatedData = rawValue as IPairOrNoPairGameData;
-        parsedData = { items: validatedData.items };
-      }
-    } catch {
-      /* ignore */
-    }
+    // FIX: Hapus try-catch
+    const rawJson = game.game_json;
+    const parsedData = (
+      typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson
+    ) as IPairOrNoPairGameData;
 
     return {
       id: game.id,
       name: game.name,
       description: game.description,
       thumbnail_image: game.thumbnail_image,
-      items: parsedData.items ?? [],
+      items: parsedData?.items ?? [],
       is_published: game.is_published,
     };
   }
@@ -253,7 +233,8 @@ export abstract class PairOrNoPairService {
         description: data.description,
         thumbnail_image: thumbnailImagePath,
         is_published: data.is_publish,
-        game_json: JSON.stringify(gameJson) as unknown as Prisma.InputJsonValue,
+        // FIX: Hapus JSON.stringify
+        game_json: gameJson as unknown as Prisma.InputJsonValue,
       },
       select: {
         id: true,
@@ -348,6 +329,14 @@ export abstract class PairOrNoPairService {
         score: data.score,
         difficulty: data.difficulty,
         time_taken: data.time_taken,
+      },
+      // FIX: Kembalikan select agar query tidak berat
+      select: {
+        id: true,
+        score: true,
+        difficulty: true,
+        time_taken: true,
+        created_at: true,
       },
     });
 
