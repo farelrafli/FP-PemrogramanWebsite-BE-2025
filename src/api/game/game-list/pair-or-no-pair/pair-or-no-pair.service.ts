@@ -89,16 +89,21 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
+      // FIX: Casting ke unknown dulu sebelum ke tipe tujuan untuk menghindari "unsafe assignment"
       const rawJson = (
         typeof game.game_json === 'string'
           ? JSON.parse(game.game_json)
           : game.game_json
-      ) as IPairOrNoPairGameData;
+      ) as unknown;
 
-      parsedData =
-        typeof rawJson === 'string'
-          ? (JSON.parse(rawJson) as IPairOrNoPairGameData)
-          : rawJson;
+      if (rawJson && typeof rawJson === 'object') {
+        parsedData = rawJson as IPairOrNoPairGameData;
+      }
+
+      // Handle double stringified JSON jika masih berupa string
+      if (typeof rawJson === 'string') {
+        parsedData = JSON.parse(rawJson) as IPairOrNoPairGameData;
+      }
     } catch {
       // eslint-disable-next-line no-console
       console.error('Parsing failed for getGameDetail');
@@ -159,12 +164,15 @@ export abstract class PairOrNoPairService {
         typeof game.game_json === 'string'
           ? JSON.parse(game.game_json)
           : game.game_json
-      ) as IPairOrNoPairGameData;
+      ) as unknown;
 
-      parsedData =
-        typeof rawJson === 'string'
-          ? (JSON.parse(rawJson) as IPairOrNoPairGameData)
-          : rawJson;
+      if (rawJson && typeof rawJson === 'object') {
+        parsedData = rawJson as IPairOrNoPairGameData;
+      }
+
+      if (typeof rawJson === 'string') {
+        parsedData = JSON.parse(rawJson) as IPairOrNoPairGameData;
+      }
     } catch {
       /* ignore */
     }
