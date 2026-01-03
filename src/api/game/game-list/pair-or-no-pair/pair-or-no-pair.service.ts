@@ -26,7 +26,7 @@ export abstract class PairOrNoPairService {
     );
 
     const gameJson: IPairOrNoPairGameData = {
-      items: data.items.map((item) => ({
+      items: data.items.map(item => ({
         id: v4(),
         left_content: item.left_content,
         right_content: item.right_content,
@@ -78,12 +78,16 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
-      const rawJson =
+      const rawJson = (
         typeof game.game_json === 'string'
-          ? (JSON.parse(game.game_json) as IPairOrNoPairGameData)
-          : (game.game_json as unknown as IPairOrNoPairGameData);
+          ? JSON.parse(game.game_json)
+          : game.game_json
+      ) as IPairOrNoPairGameData;
 
-      parsedData = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      parsedData =
+        typeof rawJson === 'string'
+          ? (JSON.parse(rawJson) as IPairOrNoPairGameData)
+          : rawJson;
     } catch (error) {
       console.error('Parsing failed', error);
     }
@@ -123,7 +127,7 @@ export abstract class PairOrNoPairService {
     }
 
     const gameJson: IPairOrNoPairGameData = {
-      items: (data.items || []).map((item) => ({
+      items: (data.items || []).map(item => ({
         id: item.id || v4(),
         left_content: item.left_content,
         right_content: item.right_content,
@@ -143,12 +147,7 @@ export abstract class PairOrNoPairService {
     });
   }
 
-  static async getGamePlay(
-    game_id: string,
-    is_public: boolean,
-    _user_id?: string,
-    _user_role?: string,
-  ) {
+  static async getGamePlay(game_id: string, is_public: boolean) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
       select: {
@@ -174,12 +173,16 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
-      const rawJson =
+      const rawJson = (
         typeof game.game_json === 'string'
-          ? (JSON.parse(game.game_json) as IPairOrNoPairGameData)
-          : (game.game_json as unknown as IPairOrNoPairGameData);
+          ? JSON.parse(game.game_json)
+          : game.game_json
+      ) as IPairOrNoPairGameData;
 
-      parsedData = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      parsedData =
+        typeof rawJson === 'string'
+          ? (JSON.parse(rawJson) as IPairOrNoPairGameData)
+          : rawJson;
     } catch {
       /* ignore */
     }
