@@ -30,8 +30,8 @@ export abstract class PairOrNoPairService {
     const gameJson: IPairOrNoPairGameData = {
       items: data.items.map(item => ({
         id: v4(),
-        left_content: item.left_content,
-        right_content: item.right_content,
+        left_content: String(item.left_content),
+        right_content: String(item.right_content),
       })),
     };
 
@@ -234,14 +234,15 @@ export abstract class PairOrNoPairService {
       );
     }
 
+    // FIX: Tambahkan casting eksplisit untuk menghindari unsafe assignment
+    const itemsData = data.items ? data.items.map(item => ({
+      id: (item.id || v4()) as string,
+      left_content: String(item.left_content),
+      right_content: String(item.right_content),
+    })) : [];
+
     const gameJson: IPairOrNoPairGameData = {
-      items: data.items
-        ? data.items.map(item => ({
-            id: item.id || v4(),
-            left_content: item.left_content,
-            right_content: item.right_content,
-          }))
-        : [],
+      items: itemsData,
     };
 
     const updatedGame = await prisma.games.update({
