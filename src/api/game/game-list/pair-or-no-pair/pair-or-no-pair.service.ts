@@ -54,7 +54,11 @@ export abstract class PairOrNoPairService {
     return newGame;
   }
 
-  static async getGameDetail(game_id: string, user_id: string, user_role: ROLE) {
+  static async getGameDetail(
+    game_id: string,
+    user_id: string,
+    user_role: ROLE,
+  ) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
       select: {
@@ -287,14 +291,14 @@ export abstract class PairOrNoPairService {
   }
 
   private static async existGameCheck(game_name?: string, game_id?: string) {
-    const where: Record<string, Prisma.IdWithNot | string> = {};
+    const where: Prisma.GamesWhereInput = {};
     if (game_name) where.name = game_name;
     if (game_id) where.id = { not: game_id };
 
     if (Object.keys(where).length === 0) return null;
 
     const game = await prisma.games.findFirst({
-      where: where as Prisma.GamesWhereInput,
+      where,
       select: { id: true },
     });
 
@@ -319,7 +323,11 @@ export abstract class PairOrNoPairService {
     return result.id;
   }
 
-  static async evaluateGame(data: IEvaluate, game_id: string, user_id?: string) {
+  static async evaluateGame(
+    data: IEvaluate,
+    game_id: string,
+    user_id?: string,
+  ) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
       select: {
