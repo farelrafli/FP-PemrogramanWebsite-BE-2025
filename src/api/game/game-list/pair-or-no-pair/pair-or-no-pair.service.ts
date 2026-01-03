@@ -89,20 +89,13 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
-      // FIX: Casting ke unknown dulu sebelum ke tipe tujuan untuk menghindari "unsafe assignment"
-      const rawJson = (
-        typeof game.game_json === 'string'
-          ? JSON.parse(game.game_json)
-          : game.game_json
-      ) as unknown;
+      // PERBAIKAN LINTING: Gunakan unknown dan type checking ketat
+      const rawJson: unknown = typeof game.game_json === 'string'
+        ? JSON.parse(game.game_json)
+        : game.game_json;
 
-      if (rawJson && typeof rawJson === 'object') {
-        parsedData = rawJson as IPairOrNoPairGameData;
-      }
-
-      // Handle double stringified JSON jika masih berupa string
-      if (typeof rawJson === 'string') {
-        parsedData = JSON.parse(rawJson) as IPairOrNoPairGameData;
+      if (rawJson && typeof rawJson === 'object' && 'items' in rawJson) {
+        parsedData = rawJson as unknown as IPairOrNoPairGameData;
       }
     } catch {
       // eslint-disable-next-line no-console
@@ -112,7 +105,7 @@ export abstract class PairOrNoPairService {
     return {
       ...game,
       game_json: parsedData,
-      items: parsedData?.items || [],
+      items: parsedData.items || [],
       creator_id: undefined,
       game_template: undefined,
     };
@@ -160,18 +153,12 @@ export abstract class PairOrNoPairService {
     let parsedData: IPairOrNoPairGameData = { items: [] };
 
     try {
-      const rawJson = (
-        typeof game.game_json === 'string'
-          ? JSON.parse(game.game_json)
-          : game.game_json
-      ) as unknown;
+      const rawJson: unknown = typeof game.game_json === 'string'
+        ? JSON.parse(game.game_json)
+        : game.game_json;
 
-      if (rawJson && typeof rawJson === 'object') {
-        parsedData = rawJson as IPairOrNoPairGameData;
-      }
-
-      if (typeof rawJson === 'string') {
-        parsedData = JSON.parse(rawJson) as IPairOrNoPairGameData;
+      if (rawJson && typeof rawJson === 'object' && 'items' in rawJson) {
+        parsedData = rawJson as unknown as IPairOrNoPairGameData;
       }
     } catch {
       /* ignore */
@@ -182,7 +169,7 @@ export abstract class PairOrNoPairService {
       name: game.name,
       description: game.description,
       thumbnail_image: game.thumbnail_image,
-      items: parsedData?.items ?? [],
+      items: parsedData.items ?? [],
       is_published: game.is_published,
     };
   }
