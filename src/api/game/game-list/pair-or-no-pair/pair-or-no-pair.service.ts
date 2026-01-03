@@ -88,8 +88,10 @@ export abstract class PairOrNoPairService {
         typeof rawJson === 'string'
           ? (JSON.parse(rawJson) as IPairOrNoPairGameData)
           : rawJson;
-    } catch (error) {
-      console.error('Parsing failed', error);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error('Parsing failed', error.message);
+      }
     }
 
     return {
