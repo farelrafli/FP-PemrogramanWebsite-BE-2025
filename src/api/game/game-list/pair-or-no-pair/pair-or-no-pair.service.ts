@@ -1,3 +1,4 @@
+import { type Prisma, type ROLE } from '@prisma/client';
 import { StatusCodes } from 'http-status-codes';
 import { v4 } from 'uuid';
 
@@ -12,7 +13,8 @@ import {
 } from './schema';
 
 export abstract class PairOrNoPairService {
-  private static gameSlug = 'pair-or-no-pair';
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  private static GAME_SLUG = 'pair-or-no-pair';
 
   static async createGame(data: ICreatePairOrNoPair, user_id: string) {
     await this.existGameCheck(data.name);
@@ -26,14 +28,14 @@ export abstract class PairOrNoPairService {
     );
 
     const gameJson: IPairOrNoPairGameData = {
-      items: data.items.map((item) => ({
+      items: data.items.map(item => ({
         id: v4(),
-        left_content: item.left_content,
-        right_content: item.right_content,
+        left_content: String(item.left_content),
+        right_content: String(item.right_content),
       })),
     };
 
-    return await prisma.games.create({
+    const newGame = await prisma.games.create({
       data: {
         id: newGameId,
         game_template_id: gameTemplateId,
@@ -42,16 +44,72 @@ export abstract class PairOrNoPairService {
         description: data.description,
         thumbnail_image: thumbnailImagePath,
         is_published: data.is_publish_immediately,
-        game_json: JSON.stringify(gameJson),
+        // FIX: Jangan di-stringify, biarkan Prisma menangani objek
+        game_json: gameJson as unknown as Prisma.InputJsonValue,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        score: true,
+        difficulty: true,
+        created_at: true,
+      },
     });
+
+    return newGame;
   }
 
   static async getGameDetail(
     game_id: string,
     user_id: string,
-    user_role: string,
+    user_role: ROLE,
+  ) {
+    const game = await prisma.games.findUnique({
+      where: { id: game_id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        thumbnail_image: true,
+        is_published: true,
+        created_at: true,
+        game_json: true,
+        creator_id: true,
+        total_played: true,
+        game_template: {
+          select: { slug: true },
+        },
+      },
+    });
+
+    if (!game || game.game_template.slug !== this.GAME_SLUG)
+      throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
+
+    if (user_role !== 'SUPER_ADMIN' && game.creator_id !== user_id)
+      throw new ErrorResponse(
+        StatusCodes.FORBIDDEN,
+        'User cannot access this game',
+      );
+
+    // FIX: Hapus try-catch, lakukan parsing manual yang aman
+    const rawJson = game.game_json;
+    const parsedData = (
+      typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson
+    ) as IPairOrNoPairGameData;
+
+    return {
+      ...game,
+      game_json: parsedData,
+      items: parsedData?.items || [],
+      creator_id: undefined,
+      game_template: undefined,
+    };
+  }
+
+  static async getGamePlay(
+    game_id: string,
+    is_public: boolean,
+    user_id?: string,
+    user_role?: ROLE,
   ) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
@@ -63,35 +121,42 @@ export abstract class PairOrNoPairService {
         is_published: true,
         game_json: true,
         creator_id: true,
-        game_template: { select: { slug: true } },
+        game_template: {
+          select: { slug: true },
+        },
       },
     });
 
-    if (!game || game.game_template.slug !== this.gameSlug) {
+    if (
+      !game ||
+      (is_public && !game.is_published) ||
+      game.game_template.slug !== this.GAME_SLUG
+    )
       throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
-    }
 
-    if (user_role !== 'SUPER_ADMIN' && game.creator_id !== user_id) {
-      throw new ErrorResponse(StatusCodes.FORBIDDEN, 'Unauthorized access');
-    }
+    if (
+      !is_public &&
+      user_role !== 'SUPER_ADMIN' &&
+      game.creator_id !== user_id
+    )
+      throw new ErrorResponse(
+        StatusCodes.FORBIDDEN,
+        'User cannot get this game data',
+      );
 
-    let parsedData: IPairOrNoPairGameData = { items: [] };
-
-    try {
-      const rawJson =
-        typeof game.game_json === 'string'
-          ? (JSON.parse(game.game_json) as IPairOrNoPairGameData)
-          : (game.game_json as unknown as IPairOrNoPairGameData);
-
-      parsedData = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
-    } catch (error) {
-      console.error('Parsing failed', error);
-    }
+    // FIX: Hapus try-catch
+    const rawJson = game.game_json;
+    const parsedData = (
+      typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson
+    ) as IPairOrNoPairGameData;
 
     return {
-      ...game,
-      game_json: parsedData,
-      items: parsedData?.items || [],
+      id: game.id,
+      name: game.name,
+      description: game.description,
+      thumbnail_image: game.thumbnail_image,
+      items: parsedData?.items ?? [],
+      is_published: game.is_published,
     };
   }
 
@@ -99,55 +164,7 @@ export abstract class PairOrNoPairService {
     data: IUpdatePairOrNoPair,
     game_id: string,
     user_id: string,
-    user_role: string,
-  ) {
-    const game = await prisma.games.findUnique({
-      where: { id: game_id },
-      select: { id: true, thumbnail_image: true, creator_id: true },
-    });
-
-    if (!game) throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
-
-    if (user_role !== 'SUPER_ADMIN' && game.creator_id !== user_id) {
-      throw new ErrorResponse(StatusCodes.FORBIDDEN, 'Unauthorized');
-    }
-
-    let thumbnailImagePath = game.thumbnail_image;
-
-    if (data.thumbnail_image) {
-      if (game.thumbnail_image) await FileManager.remove(game.thumbnail_image);
-      thumbnailImagePath = await FileManager.upload(
-        `game/pair-or-no-pair/${game_id}`,
-        data.thumbnail_image,
-      );
-    }
-
-    const gameJson: IPairOrNoPairGameData = {
-      items: (data.items || []).map((item) => ({
-        id: item.id || v4(),
-        left_content: item.left_content,
-        right_content: item.right_content,
-      })),
-    };
-
-    return await prisma.games.update({
-      where: { id: game_id },
-      data: {
-        name: data.name,
-        description: data.description,
-        thumbnail_image: thumbnailImagePath,
-        is_published: data.is_publish,
-        game_json: JSON.stringify(gameJson),
-      },
-      select: { id: true },
-    });
-  }
-
-  static async getGamePlay(
-    game_id: string,
-    is_public: boolean,
-    _user_id?: string,
-    _user_role?: string,
+    user_role: ROLE,
   ) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
@@ -159,51 +176,135 @@ export abstract class PairOrNoPairService {
         is_published: true,
         game_json: true,
         creator_id: true,
-        game_template: { select: { slug: true } },
+        game_template: {
+          select: { slug: true },
+        },
       },
     });
 
-    if (
-      !game ||
-      (is_public && !game.is_published) ||
-      game.game_template.slug !== this.gameSlug
-    ) {
+    if (!game || game.game_template.slug !== this.GAME_SLUG)
       throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
+
+    if (user_role !== 'SUPER_ADMIN' && game.creator_id !== user_id)
+      throw new ErrorResponse(
+        StatusCodes.FORBIDDEN,
+        'User cannot access this game',
+      );
+
+    if (data.name) {
+      const isNameExist = await prisma.games.findUnique({
+        where: { name: data.name },
+        select: { id: true },
+      });
+
+      if (isNameExist && isNameExist.id !== game_id)
+        throw new ErrorResponse(
+          StatusCodes.BAD_REQUEST,
+          'Game name is already used',
+        );
     }
 
-    let parsedData: IPairOrNoPairGameData = { items: [] };
+    let thumbnailImagePath = game.thumbnail_image;
 
-    try {
-      const rawJson =
-        typeof game.game_json === 'string'
-          ? (JSON.parse(game.game_json) as IPairOrNoPairGameData)
-          : (game.game_json as unknown as IPairOrNoPairGameData);
+    if (data.thumbnail_image) {
+      if (game.thumbnail_image) {
+        await FileManager.remove(game.thumbnail_image);
+      }
 
-      parsedData = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
-    } catch {
-      /* ignore */
+      thumbnailImagePath = await FileManager.upload(
+        `game/pair-or-no-pair/${game_id}`,
+        data.thumbnail_image,
+      );
     }
 
-    return { ...game, items: parsedData?.items ?? [] };
+    const itemsData = data.items
+      ? data.items.map(item => ({
+          id: (item.id || v4()) as string,
+          left_content: String(item.left_content),
+          right_content: String(item.right_content),
+        }))
+      : [];
+
+    const gameJson: IPairOrNoPairGameData = {
+      items: itemsData,
+    };
+
+    const updatedGame = await prisma.games.update({
+      where: { id: game_id },
+      data: {
+        name: data.name,
+        description: data.description,
+        thumbnail_image: thumbnailImagePath,
+        is_published: data.is_publish,
+        // FIX: Hapus JSON.stringify
+        game_json: gameJson as unknown as Prisma.InputJsonValue,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return updatedGame;
   }
 
-  static async deleteGame(game_id: string, user_id: string, user_role: string) {
+  static async deleteGame(game_id: string, user_id: string, user_role: ROLE) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
-      select: { id: true, thumbnail_image: true, creator_id: true },
+      select: {
+        id: true,
+        thumbnail_image: true,
+        creator_id: true,
+      },
     });
 
     if (!game) throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
 
-    if (user_role !== 'SUPER_ADMIN' && game.creator_id !== user_id) {
-      throw new ErrorResponse(StatusCodes.FORBIDDEN, 'Unauthorized');
-    }
+    if (user_role !== 'SUPER_ADMIN' && game.creator_id !== user_id)
+      throw new ErrorResponse(
+        StatusCodes.FORBIDDEN,
+        'User cannot delete this game',
+      );
 
-    if (game.thumbnail_image) await FileManager.remove(game.thumbnail_image);
+    if (game.thumbnail_image) {
+      await FileManager.remove(game.thumbnail_image);
+    }
 
     await prisma.games.delete({ where: { id: game_id } });
 
     return { id: game_id };
+  }
+
+  private static async existGameCheck(game_name?: string, game_id?: string) {
+    const where: Prisma.GamesWhereInput = {};
+    if (game_name) where.name = game_name;
+    if (game_id) where.id = { not: game_id };
+
+    if (Object.keys(where).length === 0) return null;
+
+    const game = await prisma.games.findFirst({
+      where,
+      select: { id: true },
+    });
+
+    if (game)
+      throw new ErrorResponse(
+        StatusCodes.BAD_REQUEST,
+        'Game name is already exist',
+      );
+
+    return game;
+  }
+
+  private static async getGameTemplateId() {
+    const result = await prisma.gameTemplates.findUnique({
+      where: { slug: this.GAME_SLUG },
+      select: { id: true },
+    });
+
+    if (!result)
+      throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game template not found');
+
+    return result.id;
   }
 
   static async evaluateGame(
@@ -213,14 +314,18 @@ export abstract class PairOrNoPairService {
   ) {
     const game = await prisma.games.findUnique({
       where: { id: game_id },
-      select: { id: true, game_template: { select: { slug: true } } },
+      select: {
+        id: true,
+        game_template: {
+          select: { slug: true },
+        },
+      },
     });
 
-    if (!game || game.game_template.slug !== this.gameSlug) {
+    if (!game || game.game_template.slug !== this.GAME_SLUG)
       throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
-    }
 
-    const entry = await prisma.leaderboard.create({
+    const leaderboardEntry = await prisma.leaderboard.create({
       data: {
         game_id,
         user_id: user_id || null,
@@ -228,17 +333,30 @@ export abstract class PairOrNoPairService {
         difficulty: data.difficulty,
         time_taken: data.time_taken,
       },
+      // FIX: Kembalikan select agar query tidak berat
+      select: {
+        id: true,
+        score: true,
+        difficulty: true,
+        time_taken: true,
+        created_at: true,
+      },
     });
 
     const rank = await prisma.leaderboard.count({
       where: {
         game_id,
         difficulty: data.difficulty,
-        score: { gt: data.score },
+        score: {
+          gt: data.score,
+        },
       },
     });
 
-    return { ...entry, rank: rank + 1 };
+    return {
+      ...leaderboardEntry,
+      rank: rank + 1,
+    };
   }
 
   static async getLeaderboard(game_id: string, difficulty?: string) {
@@ -249,8 +367,11 @@ export abstract class PairOrNoPairService {
 
     if (!game) throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Game not found');
 
-    const list = await prisma.leaderboard.findMany({
-      where: { game_id, difficulty },
+    const where: { game_id: string; difficulty?: string } = { game_id };
+    if (difficulty) where.difficulty = difficulty;
+
+    const leaderboard = await prisma.leaderboard.findMany({
+      where,
       orderBy: { score: 'desc' },
       take: 10,
       select: {
@@ -258,45 +379,20 @@ export abstract class PairOrNoPairService {
         score: true,
         difficulty: true,
         created_at: true,
-        user: { select: { username: true } },
+        user: {
+          select: {
+            username: true,
+          },
+        },
       },
     });
 
-    return list.map((entry, index) => ({
+    return leaderboard.map((entry, index) => ({
       rank: index + 1,
       username: entry.user?.username || 'Anonymous',
       score: entry.score,
       difficulty: entry.difficulty,
       created_at: entry.created_at,
     }));
-  }
-
-  private static async existGameCheck(game_name?: string) {
-    if (!game_name) return;
-
-    const game = await prisma.games.findUnique({
-      where: { name: game_name },
-      select: { id: true },
-    });
-
-    if (game) {
-      throw new ErrorResponse(
-        StatusCodes.BAD_REQUEST,
-        'Game name already exists',
-      );
-    }
-  }
-
-  private static async getGameTemplateId() {
-    const result = await prisma.gameTemplates.findUnique({
-      where: { slug: this.gameSlug },
-      select: { id: true },
-    });
-
-    if (!result) {
-      throw new ErrorResponse(StatusCodes.NOT_FOUND, 'Template not found');
-    }
-
-    return result.id;
   }
 }
